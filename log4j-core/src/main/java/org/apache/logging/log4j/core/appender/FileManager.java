@@ -54,6 +54,7 @@ public class FileManager extends OutputStreamManager {
 
     private final boolean isAppend;
     private final boolean createOnDemand;
+    private AtomicBoolean parentDirCreated = new AtomicBoolean(false);
     private final boolean isLocking;
     private final String advertiseURI;
     private final int bufferSize;
@@ -262,7 +263,11 @@ public class FileManager extends OutputStreamManager {
         return fos;
     }
 
-    protected void createParentDir(final File file) {}
+    protected void createParentDir(final File file) {
+        if (!this.parentDirCreated.getAndSet(true)) {
+            FileUtils.makeParentDirs(file);
+        }
+    }
 
     protected void defineAttributeView(final Path path) {
         if (attributeViewEnabled) {
@@ -505,7 +510,7 @@ public class FileManager extends OutputStreamManager {
                 final boolean writeHeader = !data.append || !file.exists();
                 final int actualSize = data.bufferedIo ? data.bufferSize : Constants.ENCODER_BYTE_BUFFER_SIZE;
                 final ByteBuffer byteBuffer = ByteBuffer.wrap(new byte[actualSize]);
-                final FileOutputStream fos = data.createOnDemand ? null : new FileOutputStream(file, data.append);
+                final FileOutputStream fos = createFileOutputStream(data.createOnDemand);
                 final FileManager fm = new FileManager(
                         data.getLoggerContext(),
                         name,
@@ -526,6 +531,14 @@ public class FileManager extends OutputStreamManager {
                 return fm;
             } catch (final IOException ex) {
                 LOGGER.error("FileManager (" + name + ") " + ex, ex);
+            }
+            return null;
+        }
+
+        private FileOutputStream createFileOutputStream(boolean createOnDemand, String fileName, boolean append) {
+            if (!createOnDemand) {
+                FileUtils.makeParentDirs(file);
+                return new FileOutputStream(fileName, append);
             }
             return null;
         }
